@@ -21,6 +21,7 @@ cpuid_valid:
     ret
 
 cpuid_call:
+    mov rsi, rbx        # Don't forget to preserve registers!
     mov eax, DWORD PTR [rdi+0x0]
     mov ecx, DWORD PTR [rdi+0xC]
     cpuid
@@ -29,4 +30,5 @@ cpuid_call:
     mov DWORD PTR [rdi+0x8], edx
     mov DWORD PTR [rdi+0xC], ecx
     mov rax, 0x0
+    mov rbx, rsi        # recover rbx.
     ret
