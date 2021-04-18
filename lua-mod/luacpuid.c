@@ -57,10 +57,12 @@ static int _cpu_vendor(lua_State *L){
 static int _buf_new(lua_State *L){
     int table_idx = -1;
     
+    /* PROP: OOP style? */
+
     lua_createtable(L, 0, 4);
     /* set metatable */
     luaL_setmetatable(L, cpuid_mt);
-    /* do init */
+    /* do init fields. */
     for (int i = 0; i < 4; i++){
         lua_pushstring(L, buf_fields[i]);
         lua_pushinteger(L, (lua_Integer)0);

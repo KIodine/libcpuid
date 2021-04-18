@@ -19,6 +19,7 @@ uint32_t bitrev32(uint32_t dw){
     return dw;
 }
 
+// or using external buffer?
 const char *cpuid_vendor(void){
 
     static union {

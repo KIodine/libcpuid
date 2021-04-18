@@ -1,5 +1,5 @@
 AR := ar
-CC := cc
+CC ?= cc
 AS := as
 
 CFLAGS := -g -O0 -Wall -Wextra
@@ -23,6 +23,7 @@ LIBNAME := lib$(PROJ_NAME)
 LIBSTATIC := $(LIBDIR)/$(LIBNAME).a
 LIBSHARED := $(LIBDIR)/$(LIBNAME).so
 LIBLUAMOD := $(LIBDIR)/lua$(PROJ_NAME).so
+LIBPYMOD := $(LIBDIR)/py$(PROJ_NAME).so # a `PYEXT` var for platform compat?
 
 CFLAGS += $(addprefix -I,$(INCDIR))
 
@@ -39,7 +40,7 @@ ASMOBJ := $(addprefix $(OBJDIR)/,$(ASMOBJ))
 LIBOBJS := $(SRCOBJ) $(ASMOBJ)
 
 
-.PHONY: static
+.PHONY: static shared lua-mod py-mod clean depends
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR) $(BINDIR) $(LIBDIR)
@@ -60,6 +61,7 @@ $(LIBSHARED): $(LIBOBJS)
 	$(CC) -o $@ $(CFLAGS) -shared $(LIBOBJS)
 shared: $(LIBSHARED)
 
+# --- Lua lib ---
 $(OBJDIR)/luacpuid.o: lua-mod/luacpuid.c
 	$(CC) -c -o $@ $(CFLAGS) -I$(VNDDIR)/lua $^
 # Adding `-fPIC` flag so can link against other object compiled with `-fPIC`.
@@ -76,13 +78,26 @@ lib/luacpuid.so: $(OBJDIR)/luacpuid.o $(LIBSTATIC) $(VNDDIR)/lua/liblua.a
 lua-mod: lib/luacpuid.so
 #-L$(VNDDIR)/lua -llua
 
+# --- Python lib ---
+PYLIB_INC := /usr/include/python3.7
+PYLIB_LIB := /usr/lib/python3.7/config-3.7m-x86_64-linux-gnu
+# TODO.
+$(OBJDIR)/pycpuid.o: py-mod/pycpuid.c
+	$(CC) -c -o $@ $(CFLAGS) -I$(PYLIB_INC) $^
+lib/pycpuid.so: CFLAGS += -fPIC
+lib/pycpuid.so: $(OBJDIR)/pycpuid.o $(LIBSTATIC)
+	$(CC) -o $@ $(CFLAGS) -shared -L$(PYLIB_LIB) -lpython3.7 $^
+py-mod: lib/pycpuid.so
+
+# --- generic tools ---
 clean:
-	rm -f $(LIBSTATIC) $(LIBSHARED) $(LIBLUAMOD) $(LIBOBJS)
+	rm -f $(LIBSTATIC) $(LIBSHARED) $(LIBLUAMOD) $(LIBOBJS) \
+ $(LIBPYMOD)
 
 # --- DO NOT MODIFY MANUALLY! ---
 # > To update, use make command below:
 depends:
-	$(CC) -MM -I$(INCDIR) -I$(VNDDIR)/lua $(SRCDIR)/* lua-mod/*
+	$(CC) -MM -I$(INCDIR) -I$(VNDDIR)/lua $(SRCDIR)/* lua-mod/* py-mod/*
 
 # --- machine generated ---
 cpuid-asm.o: src/cpuid-asm.S
