@@ -200,7 +200,10 @@ PyInit_pycpuid(void)
     is_cpuid_valid_cache = 1;
     vendor_name = cpuid_vendor();
     
+    /*  Are these objects handovered after `PyModule_Add*` calls, so
+        we don't have to care about ref counts? */
     pycpuid_vendor = PyUnicode_FromString(vendor_name);
+    /* hold it temporary. */
     Py_INCREF(Py_True);
     pycpuid_valid = Py_True;
     
@@ -209,7 +212,7 @@ PyInit_pycpuid(void)
         return NULL;
     }
     
-    printf("->Mod\n");
+    printf("->create mod obj\n");
     mod = PyModule_Create(&pycpuid_module);
     if (mod == NULL){
         return NULL;
@@ -221,6 +224,14 @@ PyInit_pycpuid(void)
         mod, &mod_methods[0]
     );
 
+    /*  On a successful call to `PyModule_AddObject`, the module
+        "steal"s a reference count, decreasing the number by one,
+        to prevent that the count downs to zero and triggers 
+        deallocation, we have to manually up ref by 1.
+        
+        The mechanism behind ref count is rather simple, so you may
+        want to have a look. */
+
     printf("->reg type\n");
     /* Manually holds a reference. */
     Py_INCREF(&CpuidBufferType);
@@ -229,15 +240,18 @@ PyInit_pycpuid(void)
         (PyObject*)&CpuidBufferType
     );
     if (res < 0){
+        printf("->type reg error\n");
         goto buf_reg_error;
     }
     
     printf("->reg bool const\n");
+    /* Now handover the control. */
     Py_INCREF(pycpuid_valid);
     res = PyModule_AddObject(
         mod, "CPUID_VALID", pycpuid_valid
     );
     if (res < 0){
+        printf("->bool reg fail\n");
         goto valid_reg_error;
     }
     
@@ -246,20 +260,23 @@ PyInit_pycpuid(void)
     res = PyModule_AddObject(
         mod, "CPUID_VENDOR", pycpuid_vendor
     );
+    // TODO: Try trigger import fail?
     if (res < 0){
+        /*  At this point, the ref count of `pycpuid_vendor` should be
+            2 (because we created the object), to properly trigger
+            deallocation, should we dec ref count here? */
+        printf("->vendor reg fail\n");
+        Py_DECREF(pycpuid_vendor);
         goto vendor_reg_error;
     }
 
     return mod;
     /* Error handling */
 vendor_reg_error:
-    printf("->vendor reg fail\n");
-    Py_DECREF(&pycpuid_vendor);
+    Py_DECREF(pycpuid_vendor);
 valid_reg_error:
-    printf("->bool reg fail\n");
-    Py_DECREF(&pycpuid_valid);
+    Py_DECREF(pycpuid_valid);
 buf_reg_error:
-    printf("->type reg error\n");
     Py_DECREF(&CpuidBufferType);
     Py_DECREF(mod);
     return NULL;
