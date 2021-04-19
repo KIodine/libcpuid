@@ -20,12 +20,6 @@ extern int cpuid_valid(void) __asm__("cpuid_valid");
 extern int cpuid_call(cpuid_t *buf) __asm__("cpuid_call");
 
 const char *cpuid_vendor(void);
-/*
-int cpuid_max_leaf(void);
-int cpuid_leaf(unsigned int n);
 
-// Put flags below this line.
-
-*/
 
 #endif

@@ -39,13 +39,20 @@ ASMOBJ := $(addprefix $(OBJDIR)/,$(ASMOBJ))
 
 LIBOBJS := $(SRCOBJ) $(ASMOBJ)
 
+TESTDIR := test
+TESTS := test-cpuid.c
+TESTDST := $(addprefix $(TESTDIR)/,$(TESTS))
+TESTOBJ := $(patsubst %.c,%.o,$(TESTS))
+TESTOBJ := $(addprefix $(OBJDIR)/,$(TESTOBJ))
+
+TESTBIN := test-cpuid
 
 LUADIR ?= $(VNDDIR)/lua
 PYINCDIR ?= /usr/include/python3.7
 PYLIBDIR ?= /usr/lib/python3.7/config-3.7m-x86_64-linux-gnu
 
 
-.PHONY: static shared lua-mod py-mod clean depends
+.PHONY: static shared lua-mod py-mod clean depends testbin runtest
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR) $(BINDIR) $(LIBDIR)
@@ -61,10 +68,20 @@ $(LIBSTATIC): $(LIBOBJS)
 
 static: $(LIBSTATIC)
 
-$(LIBSHARED): CFLAGS+=-fPIC
+$(LIBSHARED): CFLAGS += -fPIC
 $(LIBSHARED): $(LIBOBJS)
 	$(CC) -o $@ $(CFLAGS) -shared $(LIBOBJS)
 shared: $(LIBSHARED)
+
+# --- test ---
+$(TESTOBJ): $(OBJDIR)/%.o: $(TESTDIR)/%.c
+	$(CC) -c -o $@ $(CFLAGS) $^
+$(BINDIR)/$(TESTBIN): $(TESTOBJ) $(LIBSTATIC)
+	$(CC) -o $@ $(CFLAGS) $^
+testbin: $(BINDIR)/$(TESTBIN)
+
+runtest: $(BINDIR)/$(TESTBIN)
+	./$(BINDIR)/$(TESTBIN)
 
 # --- Lua lib ---
 $(OBJDIR)/luacpuid.o: lua-mod/luacpuid.c
@@ -75,13 +92,18 @@ $(OBJDIR)/luacpuid.o: lua-mod/luacpuid.c
 LUA_FLAGS := -fPIC -std=c99 -DLUA_USE_LINUX -DLUA_USE_READLINE
 $(VNDDIR)/lua/liblua.a:
 	$(MAKE) -C $(dir $@) all MYCFLAGS="$(LUA_FLAGS)"
+	test -f ./lua || ln -s $(VNDDIR)/lua/lua .
 
 
 lib/luacpuid.so: CFLAGS += -fPIC
 lib/luacpuid.so: $(OBJDIR)/luacpuid.o $(LIBSTATIC) $(LUADIR)/liblua.a
 	$(CC) -o $@ $(CFLAGS) -shared -L$(LUADIR) $^
 lua-mod: lib/luacpuid.so
-#-L$(VNDDIR)/lua -llua
+
+test-lua-mod: lib/luacpuid.so
+	test -f luacpuid.so || ln -s lib/luacpuid.so
+	./$(VNDDIR)/lua/lua ./test.lua
+
 
 # --- Python lib ---
 $(OBJDIR)/pycpuid.o: py-mod/pycpuid.c
@@ -91,10 +113,16 @@ lib/pycpuid.so: $(OBJDIR)/pycpuid.o $(LIBSTATIC)
 	$(CC) -o $@ $(CFLAGS) -shared -L$(PYLIBDIR) -lpython3.7 $^
 py-mod: lib/pycpuid.so
 
+test-py-mod: lib/pycpuid.so
+	test -f pycpuid.so || ln -s lib/pycpuid.so .
+	python3 ./modtest.py
+
+
 # --- generic tools ---
 clean:
 	rm -f $(LIBSTATIC) $(LIBSHARED) $(LIBLUAMOD) $(LIBOBJS) \
  $(LIBPYMOD)
+	rm -f ./lua ./*.so
 
 # --- DO NOT MODIFY MANUALLY! ---
 # > To update, use make command below:
