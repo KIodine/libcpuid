@@ -40,6 +40,11 @@ ASMOBJ := $(addprefix $(OBJDIR)/,$(ASMOBJ))
 LIBOBJS := $(SRCOBJ) $(ASMOBJ)
 
 
+LUADIR ?= $(VNDDIR)/lua
+PYINCDIR ?= /usr/include/python3.7
+PYLIBDIR ?= /usr/lib/python3.7/config-3.7m-x86_64-linux-gnu
+
+
 .PHONY: static shared lua-mod py-mod clean depends
 
 $(OBJDIR):
@@ -63,7 +68,7 @@ shared: $(LIBSHARED)
 
 # --- Lua lib ---
 $(OBJDIR)/luacpuid.o: lua-mod/luacpuid.c
-	$(CC) -c -o $@ $(CFLAGS) -I$(VNDDIR)/lua $^
+	$(CC) -c -o $@ $(CFLAGS) -I$(LUADIR) $^
 # Adding `-fPIC` flag so can link against other object compiled with `-fPIC`.
 # This will disable lots of warning by lua makefile.
 # Also re-defines some flag override by custom flag.
@@ -73,20 +78,17 @@ $(VNDDIR)/lua/liblua.a:
 
 
 lib/luacpuid.so: CFLAGS += -fPIC
-lib/luacpuid.so: $(OBJDIR)/luacpuid.o $(LIBSTATIC) $(VNDDIR)/lua/liblua.a
-	$(CC) -o $@ $(CFLAGS) -shared -L$(VNDDIR)/lua $^
+lib/luacpuid.so: $(OBJDIR)/luacpuid.o $(LIBSTATIC) $(LUADIR)/liblua.a
+	$(CC) -o $@ $(CFLAGS) -shared -L$(LUADIR) $^
 lua-mod: lib/luacpuid.so
 #-L$(VNDDIR)/lua -llua
 
 # --- Python lib ---
-PYLIB_INC := /usr/include/python3.7
-PYLIB_LIB := /usr/lib/python3.7/config-3.7m-x86_64-linux-gnu
-# TODO.
 $(OBJDIR)/pycpuid.o: py-mod/pycpuid.c
-	$(CC) -c -o $@ $(CFLAGS) -I$(PYLIB_INC) $^
+	$(CC) -c -o $@ $(CFLAGS) -I$(PYINCDIR) $^
 lib/pycpuid.so: CFLAGS += -fPIC
 lib/pycpuid.so: $(OBJDIR)/pycpuid.o $(LIBSTATIC)
-	$(CC) -o $@ $(CFLAGS) -shared -L$(PYLIB_LIB) -lpython3.7 $^
+	$(CC) -o $@ $(CFLAGS) -shared -L$(PYLIBDIR) -lpython3.7 $^
 py-mod: lib/pycpuid.so
 
 # --- generic tools ---
@@ -104,3 +106,4 @@ cpuid-asm.o: src/cpuid-asm.S
 cpuid.o: src/cpuid.c include/cpuid.h
 luacpuid.o: lua-mod/luacpuid.c vendor/lua/lua.h vendor/lua/luaconf.h \
  vendor/lua/lauxlib.h vendor/lua/lua.h include/cpuid.h
+pycpuid.o: py-mod/pycpuid.c include/cpuid.h
